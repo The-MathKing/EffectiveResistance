@@ -1,0 +1,6 @@
+networkx
+scipy
+numpy
+torch
+torch_geometric
+GraphRicciCurvature
