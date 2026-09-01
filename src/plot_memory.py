@@ -7,6 +7,7 @@ def main():
         print("memory_scaling.csv not found")
         return
         
+    plt.rcParams.update({'font.size': 20, 'axes.labelsize': 22, 'axes.titlesize': 24, 'xtick.labelsize': 20, 'ytick.labelsize': 20, 'legend.fontsize': 16})
     df = pd.read_csv('memory_scaling.csv')
     
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -20,16 +21,16 @@ def main():
     ax.set_xscale('log')
     ax.set_yscale('log')
     
-    ax.set_xlabel('Graph Size (Number of Nodes $|V|$)', fontsize=14)
-    ax.set_ylabel('Peak RAM Allocation (GB)', fontsize=14)
-    ax.set_title('Memory Scalability: Naive vs CSER', fontsize=16)
+    ax.set_xlabel('Graph Size (Number of Nodes $|V|$)')
+    ax.set_ylabel('Peak RAM Allocation (GB)')
+    ax.set_title('Memory Scalability: Naive vs CSER')
     
     ax.grid(True, which="both", ls="--", alpha=0.5)
-    ax.legend(fontsize=12, loc='upper left')
+    ax.legend(loc='upper left')
     
     # Add a horizontal line for standard consumer hardware (e.g. 16GB)
     ax.axhline(y=16.0, color='black', linestyle=':', linewidth=2, label='16GB RAM Limit')
-    ax.text(1200, 18, 'Standard 16GB RAM Limit', fontsize=10, color='black')
+    ax.text(1200, 18, 'Standard 16GB RAM Limit', fontsize=16, color='black')
     
     fig.tight_layout()
     plt.savefig('memory_footprint.pdf', format='pdf', dpi=300)

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def main():
+    plt.rcParams.update({'font.size': 20, 'axes.labelsize': 22, 'axes.titlesize': 24, 'xtick.labelsize': 20, 'ytick.labelsize': 20, 'legend.fontsize': 16})
     df = pd.read_csv('benchmark_scaling.csv')
     
     plt.figure(figsize=(8, 6))
@@ -19,10 +20,10 @@ def main():
     v3_curve = C * (df['N_nodes']**3)
     plt.loglog(df['N_nodes'], v3_curve, linestyle='--', color='gray', label='Theoretical $O(|V|^3)$')
     
-    plt.xlabel('Number of Nodes $|V|$ (ogbn-arxiv)', fontsize=14)
-    plt.ylabel('Wall-clock Time (seconds)', fontsize=14)
-    plt.title('Computational Scaling of Effective Resistance', fontsize=16)
-    plt.legend(fontsize=12)
+    plt.xlabel('Number of Nodes $|V|$ (ogbn-arxiv)')
+    plt.ylabel('Wall-clock Time (seconds)')
+    plt.title('Computational Scaling of Effective Resistance')
+    plt.legend()
     plt.grid(True, which='both', linestyle='--', alpha=0.5)
     
     plt.tight_layout()
