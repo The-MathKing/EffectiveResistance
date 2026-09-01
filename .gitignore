@@ -1,0 +1,37 @@
+# Exclude Python cache
+__pycache__/
+*.pyc
+
+# Exclude virtual environments
+venv/
+env/
+
+# Exclude scratch directory and temporary scripts
+scratch/
+
+# Exclude overleaf and LaTeX files
+overleaf_project/
+*.tex
+*.bib
+*.pdf
+*.log
+*.aux
+*.bbl
+*.blg
+*.out
+*.zip
+
+# Exclude results, data dumps, and logs
+results/
+*.csv
+*.json
+*.txt
+LATEST_CORA_OUTPUT.txt
+cora_results.txt
+dump_diagnostic_final.txt
+dump_output.txt
+
+# Explicitly keep important scripts that might be at root
+!tier1_rewrite.py
+!rewrite.py
+

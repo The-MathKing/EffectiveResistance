@@ -106,7 +106,9 @@ def create_masks(data):
 datasets = {
     'Planetoid': ['Cora', 'CiteSeer', 'PubMed'],
     'WebKB': ['Texas', 'Cornell', 'Wisconsin'],
-    'Amazon': ['Computers', 'Photo']
+    'Amazon': ['Computers', 'Photo'],
+    'WikipediaNetwork': ['Chameleon', 'Squirrel'],
+    'Actor': ['Actor']
 }
 
 def run_diagnostic():
@@ -121,6 +123,12 @@ def run_diagnostic():
                 dataset = WebKB(root='/tmp/' + name, name=name)
             elif category == 'Amazon':
                 dataset = Amazon(root='/tmp/' + name, name=name)
+            elif category == 'WikipediaNetwork':
+                from torch_geometric.datasets import WikipediaNetwork
+                dataset = WikipediaNetwork(root='/tmp/' + name, name=name)
+            elif category == 'Actor':
+                from torch_geometric.datasets import Actor
+                dataset = Actor(root='/tmp/' + name)
                 
             data = dataset[0]
             data = create_masks(data)
@@ -150,7 +158,7 @@ def run_diagnostic():
             # CSER 5% budget
             n_edges = int(G_raw.number_of_edges() * 0.05)
             # Skip if graph is too huge for dense matrix inversion on CPU (e.g. PubMed/Computers)
-            if G_raw.number_of_nodes() > 5000:
+            if G_raw.number_of_nodes() > 8500:
                 print(f"Skipping {name} due to dense O(N^3) memory constraints.")
                 continue
                 

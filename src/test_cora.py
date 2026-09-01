@@ -91,7 +91,7 @@ def run_benchmark(dataset_name, q_list=[10, 25]):
     jaco_norms_avg.update({(v, u): 0.0 for u, v in G.edges()})
     
     torch.manual_seed(42)
-    runs = 3
+    runs = 10
     for run in range(runs):
         model = SimpleGCN(in_channels=dataset.num_features, hidden_channels=64, num_layers=2)
         model.eval()

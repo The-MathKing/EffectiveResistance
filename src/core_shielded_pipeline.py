@@ -24,7 +24,7 @@ def run_core_shielded_pipeline(dataset_name, q=25):
     # Compute ground truth (Jacobian norms on raw graph to find true structural bottlenecks)
     torch.manual_seed(42)
     jaco_norms_avg = {e: 0.0 for e in G_raw.edges()}
-    runs = 3
+    runs = 10
     for _ in range(runs):
         model = SimpleGCN(in_channels=dataset.num_features, hidden_channels=64, num_layers=2)
         model.eval()
