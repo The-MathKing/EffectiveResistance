@@ -16,24 +16,17 @@ Over-squashing in GNNs limits the capture of long-range dependencies. While loca
   - `metrics.py`: Implementations of WAF3, Effective Resistance, Commute Time, and Link Resistance Curvature.
   - `jacobian.py`: GNN Jacobian norm computations to establish ground-truth over-squashing.
   - `mosr.py`: Implementation of the Missed Over-Squashing Ratio (MOSR) thresholding metric.
-- `scratch/`: One-off analysis and validation scripts.
-  - `bootstrap_mosr.py`: Generates 200-sample bootstrap 95% Confidence Intervals for robust out-of-sample claims.
-  - `verify_leaf_node_295.py` & `clean_ablation.py`: Validates the leaf-node hijacking mechanism and performs a clean ablation by excluding leaf-adjacent edges from the $q=25$ flagging budget.
+
 
 ## Pipeline 1: Raw Benchmarking (Diagnostic)
-To evaluate the catastrophic collapse of Effective Resistance on unpruned graphs due to leaf-node hijacking, run:
-```bash
-python scratch/dump_csv.py
-```
+To evaluate the catastrophic collapse of Effective Resistance on unpruned graphs due to leaf-node hijacking, use the metrics evaluated in `src/metrics.py` alongside the pipeline scripts in `src/`.
 
 ## Pipeline 2: Core-Shielded Effective Resistance (CSER) [Recommended]
 To deploy the prescriptive algorithmic solution, which shields the cubic-time $O(|V|^3)$ spectral inversion from threshold saturation by applying a strict linear-time $O(|V|+|E|)$ $k$-core filter ($k \ge 2$), run:
 ```bash
-python src/core_shielded_pipeline.py --dataset Texas
+python src/train_rewired_gnn.py
 ```
-This mathematically guarantees the elimination of dangling tie-breaking noise, restoring the viability of Effective Resistance as a global bottleneck detector.
-
-- `*.json` / `*.csv` / `*.txt`: Raw serialized output counts, logged results, and exact cross-sectional benchmarks for full reproducibility.
+This mathematically guarantees the elimination of dangling tie-breaking noise, partially rehabilitating Effective Resistance as a global bottleneck detector.
 
 ## Requirements
 
