@@ -3,14 +3,15 @@ import torch.nn as nn
 import torch_geometric.nn as pyg_nn
 import networkx as nx
 from torch_geometric.utils import from_networkx
+import numpy as np
 
 class SimpleGCN(nn.Module):
-    def __init__(self, in_channels=64, hidden_channels=64, num_layers=2):
+    def __init__(self, in_channels=64, hidden_channels=64, num_layers=2, normalize=True):
         super().__init__()
         self.convs = nn.ModuleList()
-        self.convs.append(pyg_nn.GCNConv(in_channels, hidden_channels))
+        self.convs.append(pyg_nn.GCNConv(in_channels, hidden_channels, normalize=normalize))
         for _ in range(num_layers - 1):
-            self.convs.append(pyg_nn.GCNConv(hidden_channels, hidden_channels))
+            self.convs.append(pyg_nn.GCNConv(hidden_channels, hidden_channels, normalize=normalize))
             
     def forward(self, x, edge_index):
         for i, conv in enumerate(self.convs):
@@ -67,4 +68,29 @@ def compute_jacobian_norms(G: nx.Graph, model: nn.Module, feature_dim=64):
             norm = torch.linalg.matrix_norm(v_jacobian[:, u_idx, :], ord='fro').item()
             jacobian_norms[(u, v)] = norm
             
-    return jacobian_norms
+    symmetric_norms = {}
+    for u in nodes:
+        for v in nodes:
+            symmetric_norms[(u, v)] = 0.5 * (jacobian_norms[(u, v)] + jacobian_norms[(v, u)])
+            
+    return symmetric_norms
+
+def compute_diffusion_scores(G: nx.Graph, k_steps=2):
+    """
+    Computes a parameter-free structural propagation score based on the 
+    k-step random walk transition matrix.
+    """
+    nodes = list(G.nodes())
+    A = nx.to_numpy_array(G, nodelist=nodes)
+    D = np.sum(A, axis=1)
+    D_inv = np.zeros_like(D)
+    D_inv[D > 0] = 1.0 / D[D > 0]
+    P = np.diag(D_inv) @ A
+    P_k = np.linalg.matrix_power(P, k_steps)
+    
+    diffusion_scores = {}
+    for i, u in enumerate(nodes):
+        for j, v in enumerate(nodes):
+            diffusion_scores[(u, v)] = 0.5 * (P_k[i, j] + P_k[j, i])
+            
+    return diffusion_scores

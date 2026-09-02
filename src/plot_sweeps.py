@@ -14,8 +14,9 @@ def plot_tau():
 
     ax2 = ax1.twinx()  
     color = 'tab:red'
-    ax2.set_ylabel('GCN Test Accuracy (%)', color=color)
-    ax2.plot(df['budget_tau'], df['accuracy'], marker='s', color=color, linestyle='--', linewidth=2)
+    ax2.set_ylabel('GCN Val Accuracy (%)', color=color)
+    ax2.plot(df['budget_tau'], df['val_accuracy'], marker='s', color=color, linestyle='--', linewidth=2)
+    ax2.fill_between(df['budget_tau'], df['val_accuracy'] - df['val_acc_std'], df['val_accuracy'] + df['val_acc_std'], color=color, alpha=0.2)
     ax2.tick_params(axis='y', labelcolor=color)
 
     plt.title(r'Effect of Rewiring Budget ($\tau$) on Spectral Gap & Accuracy', pad=20)
@@ -37,8 +38,9 @@ def plot_k():
 
     ax2 = ax1.twinx()  
     color = 'tab:red'
-    ax2.set_ylabel('GCN Test Accuracy (%)', color=color)
-    ax2.plot(df['k_core'], df['accuracy'], marker='s', color=color, linestyle='--', linewidth=2)
+    ax2.set_ylabel('GCN Val Accuracy (%)', color=color)
+    ax2.plot(df['k_core'], df['val_accuracy'], marker='s', color=color, linestyle='--', linewidth=2)
+    ax2.fill_between(df['k_core'], df['val_accuracy'] - df['val_acc_std'], df['val_accuracy'] + df['val_acc_std'], color=color, alpha=0.2)
     ax2.tick_params(axis='y', labelcolor=color)
 
     plt.title(r'Effect of $\kappa$-Core Filter on Spectral Gap & Accuracy', pad=20)

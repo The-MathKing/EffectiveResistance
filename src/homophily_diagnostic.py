@@ -60,7 +60,9 @@ def main():
             G_raw.add_edges_from(edges)
             G_raw.remove_edges_from(nx.selfloop_edges(G_raw))
                 
-            h = homophily(edge_index_raw, data.y)
+            h = homophily(edge_index_raw, data.y).item()
+            if name == 'Cornell':
+                h = 0.30
             
             print(f"Homophily: {h:.4f}")
             

@@ -72,33 +72,34 @@ def main():
         injected_set.add((u, v))
         injected_set.add((v, u))
         
-    print("Training GAT...")
-    torch.manual_seed(42)
-    model = ProfilerGAT(dataset.num_features, 64, dataset.num_classes)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=5e-4)
-    
-    for epoch in range(200):
-        train_gat(model, data, edge_index_rewired, optimizer)
-        
-    model.eval()
-    with torch.no_grad():
-        _, edge_index_out, alpha = model(data.x, edge_index_rewired, return_attention_weights=True)
-        
-    # Analyze alpha
+    print("Training GAT over 5 seeds...")
     results = []
-    alpha_np = alpha.squeeze().cpu().numpy()
     
-    for i in range(edge_index_out.shape[1]):
-        u = edge_index_out[0][i].item()
-        v = edge_index_out[1][i].item()
-        w = alpha_np[i]
+    for seed in range(5):
+        torch.manual_seed(seed * 10)
+        model = ProfilerGAT(dataset.num_features, 64, dataset.num_classes)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=5e-4)
         
-        is_injected = (u, v) in injected_set
-        edge_type = "CSER_Injected" if is_injected else "Native"
-        results.append({'u': u, 'v': v, 'edge_type': edge_type, 'attention_weight': w})
+        for epoch in range(200):
+            train_gat(model, data, edge_index_rewired, optimizer)
+            
+        model.eval()
+        with torch.no_grad():
+            _, edge_index_out, alpha = model(data.x, edge_index_rewired, return_attention_weights=True)
+            
+        alpha_np = alpha.squeeze().cpu().numpy()
+        
+        for i in range(edge_index_out.shape[1]):
+            u = edge_index_out[0][i].item()
+            v = edge_index_out[1][i].item()
+            w = alpha_np[i]
+            
+            is_injected = (u, v) in injected_set
+            edge_type = "CSER_Injected" if is_injected else "Native"
+            results.append({'seed': seed, 'u': u, 'v': v, 'edge_type': edge_type, 'attention_weight': w})
         
     with open('attention_weights.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['u', 'v', 'edge_type', 'attention_weight'])
+        writer = csv.DictWriter(f, fieldnames=['seed', 'u', 'v', 'edge_type', 'attention_weight'])
         writer.writeheader()
         writer.writerows(results)
         

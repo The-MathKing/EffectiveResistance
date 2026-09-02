@@ -68,7 +68,7 @@ def train_model(model_cls, data, num_features, num_classes, epochs=200):
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 best_test_acc = test_acc
-    return best_test_acc
+    return best_val_acc, best_test_acc
 
 def compute_lambda_2(G):
     L = nx.normalized_laplacian_matrix(G).astype(float)
@@ -141,9 +141,11 @@ if __name__ == "__main__":
         ei = torch.tensor([[node_mapping[u], node_mapping[v]] for u, v in G_cser.edges()]).t().contiguous()
         data_cser = data_lcc.clone()
         data_cser.edge_index = ei
-        acc = np.mean([train_model(GCN, data_cser, dataset.num_features, dataset.num_classes) for _ in range(3)])
-        print(f"Budget {b*100}% -> L2: {l2:.4f}, Acc: {acc:.4f}")
-        results["budgets"][str(b)] = {"l2": l2, "acc": acc}
+        val_test_accs = [train_model(GCN, data_cser, dataset.num_features, dataset.num_classes) for _ in range(3)]
+        val_acc = np.mean([x[0] for x in val_test_accs])
+        test_acc = np.mean([x[1] for x in val_test_accs])
+        print(f"Budget {b*100}% -> L2: {l2:.4f}, Val Acc: {val_acc:.4f}, Test Acc: {test_acc:.4f}")
+        results["budgets"][str(b)] = {"l2": l2, "val_acc": val_acc, "test_acc": test_acc}
         
     print("\n--- 2. k-Core Ablation (Budget 5%) ---")
     n_edges = int(G_raw.number_of_edges() * 0.05)
@@ -153,9 +155,11 @@ if __name__ == "__main__":
         ei = torch.tensor([[node_mapping[u], node_mapping[v]] for u, v in G_cser.edges()]).t().contiguous()
         data_cser = data_lcc.clone()
         data_cser.edge_index = ei
-        acc = np.mean([train_model(GCN, data_cser, dataset.num_features, dataset.num_classes) for _ in range(3)])
-        print(f"k={k} -> L2: {l2:.4f}, Acc: {acc:.4f}")
-        results["k_core"][str(k)] = {"l2": l2, "acc": acc}
+        val_test_accs = [train_model(GCN, data_cser, dataset.num_features, dataset.num_classes) for _ in range(3)]
+        val_acc = np.mean([x[0] for x in val_test_accs])
+        test_acc = np.mean([x[1] for x in val_test_accs])
+        print(f"k={k} -> L2: {l2:.4f}, Val Acc: {val_acc:.4f}, Test Acc: {test_acc:.4f}")
+        results["k_core"][str(k)] = {"l2": l2, "val_acc": val_acc, "test_acc": test_acc}
         
     print("\n--- 3. Architectural Ablation (Budget 5%, k=2) ---")
     G_cser = cser_rewiring(G_raw, n_edges, k=2)
@@ -164,10 +168,14 @@ if __name__ == "__main__":
     data_cser.edge_index = ei
     
     for name, cls in [("GCN", GCN), ("GAT", GAT), ("GraphSAGE", GraphSAGE)]:
-        acc_raw = np.mean([train_model(cls, data_lcc.clone(), dataset.num_features, dataset.num_classes) for _ in range(3)])
-        acc_cser = np.mean([train_model(cls, data_cser, dataset.num_features, dataset.num_classes) for _ in range(3)])
-        print(f"{name} -> Raw Acc: {acc_raw:.4f}, CSER Acc: {acc_cser:.4f}")
-        results["architectures"][name] = {"raw_acc": acc_raw, "cser_acc": acc_cser}
+        raw_val_test = [train_model(cls, data_lcc.clone(), dataset.num_features, dataset.num_classes) for _ in range(3)]
+        cser_val_test = [train_model(cls, data_cser, dataset.num_features, dataset.num_classes) for _ in range(3)]
+        raw_val = np.mean([x[0] for x in raw_val_test])
+        raw_test = np.mean([x[1] for x in raw_val_test])
+        cser_val = np.mean([x[0] for x in cser_val_test])
+        cser_test = np.mean([x[1] for x in cser_val_test])
+        print(f"{name} -> Raw (Val/Test): {raw_val:.4f}/{raw_test:.4f}, CSER (Val/Test): {cser_val:.4f}/{cser_test:.4f}")
+        results["architectures"][name] = {"raw_val_acc": raw_val, "raw_test_acc": raw_test, "cser_val_acc": cser_val, "cser_test_acc": cser_test}
         
     os.makedirs("results", exist_ok=True)
     with open("results/sweeps.json", "w") as f:

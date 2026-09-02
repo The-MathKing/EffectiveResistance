@@ -12,7 +12,7 @@ def main():
     plt.loglog(df['N_nodes'], df['Naive_ER_time_sec'], marker='o', color='red', label='Naive ER $O(|V|^3)$')
     
     # Plot CSER
-    plt.loglog(df['N_nodes'], df['CSER_time_sec'], marker='s', color='blue', label='CSER (k-core) $O(|V|+|E|)$')
+    plt.plot(df['N_nodes'], df['CSER_time_sec'], marker='s', color='tab:green', linewidth=2, label='CSER (k-core + Core Inversion)')
     
     # Plot theoretical O(V^3) curve for reference (dashed)
     # Fit C * V^3 to the first point of Naive ER
@@ -27,8 +27,8 @@ def main():
     plt.grid(True, which='both', linestyle='--', alpha=0.5)
     
     plt.tight_layout()
-    plt.savefig('complexity_loglog.pdf', format='pdf', dpi=300)
-    print("Saved complexity_loglog.pdf")
+    plt.savefig('ogb_complexity.pdf', format='pdf', dpi=300, bbox_inches='tight')
+    print("Saved ogb_complexity.pdf")
 
 if __name__ == '__main__':
     main()

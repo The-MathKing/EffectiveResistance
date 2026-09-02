@@ -44,29 +44,38 @@ def main():
         G_sub = create_subgraph(G_full, N)
         actual_N = G_sub.number_of_nodes()
         
-        # 1. CSER (k=2 core) time
+        # 1. CSER Pipeline time
         start_cser = time.time()
         G_core = nx.k_core(G_sub, k=2)
-        end_cser = time.time()
-        cser_time = end_cser - start_cser
+        kcore_time = time.time() - start_cser
+        
+        cser_pinv_time = 0
+        if G_core.number_of_nodes() > 0:
+            L_core = nx.laplacian_matrix(G_core).toarray()
+            start_pinv = time.time()
+            _ = np.linalg.pinv(L_core)
+            cser_pinv_time = time.time() - start_pinv
+            
+        cser_total_time = kcore_time + cser_pinv_time
+        v_core_frac = G_core.number_of_nodes() / actual_N if actual_N > 0 else 0
         
         # 2. Naive ER (dense pinv of Laplacian) time
         L = nx.laplacian_matrix(G_sub).toarray()
         
         start_naive = time.time()
         L_pinv = np.linalg.pinv(L)
-        end_naive = time.time()
-        naive_time = end_naive - start_naive
+        naive_time = time.time() - start_naive
         
-        print(f"N={actual_N} | Naive ER: {naive_time:.4f}s | CSER (k-core): {cser_time:.4f}s")
+        print(f"N={actual_N} | Naive ER: {naive_time:.4f}s | CSER Total: {cser_total_time:.4f}s (k-core: {kcore_time:.4f}, pinv: {cser_pinv_time:.4f}) | V_core/V: {v_core_frac:.4f}")
         results.append({
             'N_nodes': actual_N,
             'Naive_ER_time_sec': naive_time,
-            'CSER_time_sec': cser_time
+            'CSER_time_sec': cser_total_time,
+            'V_core_fraction': v_core_frac
         })
         
     with open('benchmark_scaling.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['N_nodes', 'Naive_ER_time_sec', 'CSER_time_sec'])
+        writer = csv.DictWriter(f, fieldnames=['N_nodes', 'Naive_ER_time_sec', 'CSER_time_sec', 'V_core_fraction'])
         writer.writeheader()
         writer.writerows(results)
         

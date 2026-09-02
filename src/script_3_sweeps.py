@@ -65,20 +65,27 @@ def main():
         
         gap = compute_spectral_gap(G_rewired)
         
-        accs = []
+        val_accs, test_accs = [], []
         for seed in range(5):
             torch.manual_seed(seed)
             model = GCN(dataset.num_features, 64, dataset.num_classes)
-            acc = train_eval(model, data, edge_index_rewired)
-            accs.append(acc)
+            v_acc, t_acc = train_eval(model, data, edge_index_rewired)
+            val_accs.append(v_acc)
+            test_accs.append(t_acc)
             
-        mean_acc = np.mean(accs)
+        mean_val_acc = np.mean(val_accs)
+        std_val_acc = np.std(val_accs)
+        mean_test_acc = np.mean(test_accs)
+        std_test_acc = np.std(test_accs)
         tau_results.append({
             'budget_tau': tau,
             'spectral_gap': gap,
-            'accuracy': mean_acc * 100
+            'val_accuracy': mean_val_acc * 100,
+            'val_acc_std': std_val_acc * 100,
+            'test_accuracy': mean_test_acc * 100,
+            'test_acc_std': std_test_acc * 100
         })
-        print(f"tau={tau} | Gap: {gap:.4f} | Acc: {mean_acc*100:.2f}%")
+        print(f"tau={tau} | Gap: {gap:.4f} | Val Acc: {mean_val_acc*100:.2f}% | Test Acc: {mean_test_acc*100:.2f}%")
         
     # K-core sweep with fixed tau=0.05
     k_cores = [2, 3, 4]
@@ -103,7 +110,7 @@ def main():
                     R_eff = L_pinv[i, i] + L_pinv[j, j] - 2 * L_pinv[i, j]
                     R_vals.append((R_eff, core_nodes[i], core_nodes[j]))
                     
-        R_vals.sort(key=lambda x: x[0])
+        R_vals.sort(key=lambda x: x[0], reverse=True)
         n_add = int(0.05 * G_lcc.number_of_edges())
         top_k = R_vals[:n_add]
         
@@ -122,28 +129,35 @@ def main():
         
         gap = compute_spectral_gap(G_rewired)
         
-        accs = []
+        val_accs, test_accs = [], []
         for seed in range(5):
             torch.manual_seed(seed)
             model = GCN(dataset.num_features, 64, dataset.num_classes)
-            acc = train_eval(model, data, edge_index_rewired)
-            accs.append(acc)
+            v_acc, t_acc = train_eval(model, data, edge_index_rewired)
+            val_accs.append(v_acc)
+            test_accs.append(t_acc)
             
-        mean_acc = np.mean(accs)
+        mean_val_acc = np.mean(val_accs)
+        std_val_acc = np.std(val_accs)
+        mean_test_acc = np.mean(test_accs)
+        std_test_acc = np.std(test_accs)
         k_results.append({
             'k_core': k,
             'spectral_gap': gap,
-            'accuracy': mean_acc * 100
+            'val_accuracy': mean_val_acc * 100,
+            'val_acc_std': std_val_acc * 100,
+            'test_accuracy': mean_test_acc * 100,
+            'test_acc_std': std_test_acc * 100
         })
-        print(f"k={k} | Gap: {gap:.4f} | Acc: {mean_acc*100:.2f}%")
+        print(f"k={k} | Gap: {gap:.4f} | Val Acc: {mean_val_acc*100:.2f}% | Test Acc: {mean_test_acc*100:.2f}%")
         
     with open('sweeps_tau.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['budget_tau', 'spectral_gap', 'accuracy'])
+        writer = csv.DictWriter(f, fieldnames=['budget_tau', 'spectral_gap', 'val_accuracy', 'val_acc_std', 'test_accuracy', 'test_acc_std'])
         writer.writeheader()
         writer.writerows(tau_results)
         
     with open('sweeps_k.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['k_core', 'spectral_gap', 'accuracy'])
+        writer = csv.DictWriter(f, fieldnames=['k_core', 'spectral_gap', 'val_accuracy', 'val_acc_std', 'test_accuracy', 'test_acc_std'])
         writer.writeheader()
         writer.writerows(k_results)
         

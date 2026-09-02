@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import networkx as nx
 import numpy as np
 import csv
+from sklearn.model_selection import KFold
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 from torch_geometric.nn import GCNConv, global_mean_pool
@@ -79,78 +80,95 @@ def main():
         print(f"Loading {ds_name}...")
         dataset = TUDataset(root=f'/tmp/TUDataset/{ds_name}', name=ds_name)
         
-        # Split 80/20
-        torch.manual_seed(42)
-        dataset = dataset.shuffle()
-        train_dataset = dataset[:int(0.8 * len(dataset))]
-        test_dataset = dataset[int(0.8 * len(dataset)):]
-        
-        # We need to evaluate both RAW and CSER
-        raw_train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-        raw_test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-        
-        print(f"  Training RAW GCN on {ds_name}...")
-        raw_accs = []
-        for seed in range(5):
-            torch.manual_seed(seed)
-            model = GCN_GraphLevel(dataset.num_node_features, 64, dataset.num_classes)
-            optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-            for epoch in range(100):
-                train(model, raw_train_loader, optimizer)
-            acc = test(model, raw_test_loader)
-            raw_accs.append(acc)
-        
-        mean_raw_acc = np.mean(raw_accs)
-        print(f"  RAW Acc: {mean_raw_acc*100:.2f}%")
-        
-        # Rewire training and test sets
+        # Rewire all graphs first
         print(f"  Rewiring {ds_name} with CSER...")
-        import copy
-        rewired_train = copy.deepcopy(train_dataset)
-        rewired_test = copy.deepcopy(test_dataset)
         
-        for i in range(len(rewired_train)):
-            if 'x' not in rewired_train[i] or rewired_train[i].x is None:
-                # Some datasets like MUTAG have node labels, not features. Add dummy features if needed.
+        raw_data_list = []
+        cser_data_list = []
+        
+        for i in range(len(dataset)):
+            # Extract data object
+            d_raw = dataset[i]
+            d_cser = d_raw.clone()
+            
+            if 'x' not in d_cser or d_cser.x is None:
                 if hasattr(dataset, 'num_node_features') and dataset.num_node_features > 0:
                     pass
                 else:
-                    rewired_train[i].x = torch.ones((rewired_train[i].num_nodes, 1))
-            rewired_train[i].edge_index = rewire_graph(rewired_train[i])
+                    d_cser.x = torch.ones((d_cser.num_nodes, 1))
+                    d_raw.x = torch.ones((d_raw.num_nodes, 1))
+                    
+            cser_edge_index = rewire_graph(d_cser)
+            d_cser.edge_index = cser_edge_index
             
-        for i in range(len(rewired_test)):
-            if 'x' not in rewired_test[i] or rewired_test[i].x is None:
-                if hasattr(dataset, 'num_node_features') and dataset.num_node_features > 0:
-                    pass
-                else:
-                    rewired_test[i].x = torch.ones((rewired_test[i].num_nodes, 1))
-            rewired_test[i].edge_index = rewire_graph(rewired_test[i])
+            raw_data_list.append(d_raw)
+            cser_data_list.append(d_cser)
             
-        cser_train_loader = DataLoader(rewired_train, batch_size=64, shuffle=True)
-        cser_test_loader = DataLoader(rewired_test, batch_size=64, shuffle=False)
+        n_add_total = sum(d.edge_index.size(1) - r.edge_index.size(1) for d, r in zip(cser_data_list, raw_data_list)) // 2
+        print(f"  Total N_add across all {len(dataset)} graphs: {n_add_total}")
         
-        print(f"  Training CSER GCN on {ds_name}...")
+        if n_add_total == 0:
+            print(f"  No edges added for {ds_name}. Skipping to next dataset.")
+            continue
+            
+        kf = KFold(n_splits=10, shuffle=True, random_state=42)
+        
+        raw_accs = []
         cser_accs = []
-        for seed in range(5):
-            torch.manual_seed(seed)
-            model = GCN_GraphLevel(dataset.num_node_features if dataset.num_node_features > 0 else 1, 64, dataset.num_classes)
-            optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-            for epoch in range(100):
-                train(model, cser_train_loader, optimizer)
-            acc = test(model, cser_test_loader)
-            cser_accs.append(acc)
+        
+        fold_idx = 0
+        for train_idx, test_idx in kf.split(dataset):
+            print(f"  Fold {fold_idx + 1}/10")
             
+            # RAW
+            train_dataset_raw = [raw_data_list[i] for i in train_idx]
+            test_dataset_raw = [raw_data_list[i] for i in test_idx]
+            
+            raw_train_loader = DataLoader(train_dataset_raw, batch_size=64, shuffle=True)
+            raw_test_loader = DataLoader(test_dataset_raw, batch_size=64, shuffle=False)
+            
+            torch.manual_seed(fold_idx) # Use fold_idx as seed for simplicity
+            model_raw = GCN_GraphLevel(dataset.num_node_features if dataset.num_node_features > 0 else 1, 64, dataset.num_classes)
+            optimizer_raw = torch.optim.Adam(model_raw.parameters(), lr=0.01)
+            
+            for epoch in range(100):
+                train(model_raw, raw_train_loader, optimizer_raw)
+            acc_raw = test(model_raw, raw_test_loader)
+            raw_accs.append(acc_raw)
+            
+            # CSER
+            train_dataset_cser = [cser_data_list[i] for i in train_idx]
+            test_dataset_cser = [cser_data_list[i] for i in test_idx]
+            
+            cser_train_loader = DataLoader(train_dataset_cser, batch_size=64, shuffle=True)
+            cser_test_loader = DataLoader(test_dataset_cser, batch_size=64, shuffle=False)
+            
+            torch.manual_seed(fold_idx)
+            model_cser = GCN_GraphLevel(dataset.num_node_features if dataset.num_node_features > 0 else 1, 64, dataset.num_classes)
+            optimizer_cser = torch.optim.Adam(model_cser.parameters(), lr=0.01)
+            
+            for epoch in range(100):
+                train(model_cser, cser_train_loader, optimizer_cser)
+            acc_cser = test(model_cser, cser_test_loader)
+            cser_accs.append(acc_cser)
+            
+            fold_idx += 1
+            
+        mean_raw_acc = np.mean(raw_accs)
         mean_cser_acc = np.mean(cser_accs)
-        print(f"  CSER Acc: {mean_cser_acc*100:.2f}%")
+        print(f"  RAW 10-fold CV Acc: {mean_raw_acc*100:.2f}%")
+        print(f"  CSER 10-fold CV Acc: {mean_cser_acc*100:.2f}%")
         
         results.append({
             'dataset': ds_name,
             'raw_acc': mean_raw_acc * 100,
-            'cser_acc': mean_cser_acc * 100
+            'raw_std': np.std(raw_accs) * 100,
+            'cser_acc': mean_cser_acc * 100,
+            'cser_std': np.std(cser_accs) * 100
         })
         
     with open('graph_classification.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['dataset', 'raw_acc', 'cser_acc'])
+        writer = csv.DictWriter(f, fieldnames=['dataset', 'raw_acc', 'raw_std', 'cser_acc', 'cser_std'])
         writer.writeheader()
         writer.writerows(results)
         

@@ -42,8 +42,8 @@ def run_benchmark(dataset_name, q_list=[10, 25]):
         ebc_undirected[(u, v)] = val
         ebc_undirected[(v, u)] = val
         
-    print("Computing Ollivier-Ricci...")
-    orc_curvs = compute_ollivier_ricci(G)
+    print("Skipping Ollivier-Ricci to avoid silent crash on macOS...")
+    orc_curvs = {}
     
     print("Computing WAF3...")
     waf3_curvs = {}
@@ -60,15 +60,21 @@ def run_benchmark(dataset_name, q_list=[10, 25]):
         r = effective_resistance(G, u, v)
         c_time = commute_time(G, u, v)
         lrc = link_resistance_curvature(G, u, v)
-        # Note: Effective resistance measures distance, so we negative it to act like curvature
-        # where low = bottleneck
-        res_curvs[(u, v)] = -r
-        res_curvs[(v, u)] = -r
-        ct_curvs[(u, v)] = -c_time
-        ct_curvs[(v, u)] = -c_time
+        # Note: Effective resistance measures distance. We want higher to indicate bottleneck.
+        res_curvs[(u, v)] = r
+        res_curvs[(v, u)] = r
+        ct_curvs[(u, v)] = c_time
+        ct_curvs[(v, u)] = c_time
         lrc_curvs[(u, v)] = lrc
         lrc_curvs[(u, v)] = lrc
         lrc_curvs[(v, u)] = lrc
+        
+    print("Computing Degree Product...")
+    deg_prod = {}
+    for u, v in G.edges():
+        d = G.degree(u) * G.degree(v)
+        deg_prod[(u, v)] = d
+        deg_prod[(v, u)] = d
         
     print("Computing Hybrid Metric (WAF3 + EffRes)...")
     hybrid_curvs = {}
@@ -93,7 +99,7 @@ def run_benchmark(dataset_name, q_list=[10, 25]):
     torch.manual_seed(42)
     runs = 10
     for run in range(runs):
-        model = SimpleGCN(in_channels=dataset.num_features, hidden_channels=64, num_layers=2)
+        model = SimpleGCN(in_channels=dataset.num_features, hidden_channels=64, num_layers=2, normalize=False)
         model.eval()
         jaco = compute_jacobian_norms(G, model, feature_dim=dataset.num_features)
         for e, val in jaco.items():
@@ -116,10 +122,11 @@ def run_benchmark(dataset_name, q_list=[10, 25]):
     metrics = {
         "ORC": orc_curvs,
         "WAF3": waf3_curvs,
-        "Eff. Resistance (neg)": res_curvs,
-        "Commute Time (neg)": ct_curvs,
+        "Eff. Resistance": res_curvs,
+        "Commute Time": ct_curvs,
         "Link Res. Curv": lrc_curvs,
-        "Hybrid (WAF3+EffRes)": hybrid_curvs
+        "Hybrid (WAF3+EffRes)": hybrid_curvs,
+        "Degree Product": deg_prod
     }
     
     results = {}
@@ -137,19 +144,30 @@ def run_benchmark(dataset_name, q_list=[10, 25]):
                 if not m_dict:
                     continue
                 
-                score, num, denom = calculate_mosr(G, G_sub, m_dict, jaco_norms_avg, q=q)
-                print(f"    {m_name:<24} : {score:.4f} (num={num}, den={denom})")
+                lower_is_bottleneck = True
+                if m_name in ["Eff. Resistance", "Commute Time", "Degree Product", "Hybrid (WAF3+EffRes)"]:
+                    lower_is_bottleneck = False
+                    
+                score, num, denom, auroc, ap = calculate_mosr(G, G_sub, m_dict, jaco_norms_avg, q=q, lower_is_bottleneck=lower_is_bottleneck)
+                print(f"    {m_name:<24} : MOSR={score:.4f} | AUROC={auroc:.4f} | AP={ap:.4f} (num={num}, den={denom})")
                 results[subset_name][f"q={q}"][m_name] = {
                     "mosr": float(score),
+                    "auroc": float(auroc),
+                    "ap": float(ap),
                     "num": int(num),
                     "denom": int(denom)
                 }
                 
+    # Calculate fraction of pendant (degree-1) edges for plotting
+    pendant_edges = sum(1 for u, v in G.edges() if G.degree(u) == 1 or G.degree(v) == 1)
+    fraction_pendant = pendant_edges / max(1, G.number_of_edges())
+    results['fraction_pendant'] = float(fraction_pendant)
+    print(f"Fraction of pendant edges: {fraction_pendant:.4f}")
+    
     return results
 
 if __name__ == "__main__":
-    datasets = ['Cornell', 'Texas'] # Subset for time
-    # 'CiteSeer' and 'WikiCS' can be added if time permits
+    datasets = ['Cornell', 'Texas'] 
     all_results = {}
     for ds in datasets:
         all_results[ds] = run_benchmark(ds)

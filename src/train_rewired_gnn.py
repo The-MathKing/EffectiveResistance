@@ -96,7 +96,7 @@ def train_eval(model, data, edge_index):
             best_val_acc = val_acc
             final_test_acc = (pred[test_mask] == data.y[test_mask]).sum().item() / test_mask.sum().item()
             
-    return final_test_acc
+    return best_val_acc, final_test_acc
 
 def compute_cser_rewired_edges(G, budget):
     G_core = nx.k_core(G, k=2)
@@ -129,16 +129,10 @@ def compute_cser_rewired_edges(G, budget):
     # zero out existing edges so we don't pick them
     for u, v in G_core.edges():
         i, j = node_to_idx[u], node_to_idx[v]
-        R_triu[min(i,j), max(i,j)] = np.inf
+        R_triu[min(i,j), max(i,j)] = -np.inf
         
-    # Get top n_edges with LOWEST R
-    # Flatten and argsort
-    flat_indices = np.argsort(R_triu, axis=None)
-    
-    # Filter out zeros from lower triangle/diag (which are 0) by selecting where R_triu > 0 and R_triu < inf
-    # Wait, argsort will put 0 first. We should set lower triangle and diag to inf
-    R_triu[np.tril_indices(len(core_nodes))] = np.inf
-    flat_indices = np.argsort(R_triu, axis=None)
+    R_triu[np.tril_indices(len(core_nodes))] = -np.inf
+    flat_indices = np.argsort(R_triu, axis=None)[::-1]
     
     best_indices = flat_indices[:n_edges]
     
@@ -206,30 +200,38 @@ def main():
             
             for m_name, m_cls in models.items():
                 print(f"Training {m_name} on {name}...")
-                raw_accs = []
-                cser_accs = []
+                raw_val_accs, raw_test_accs = [], []
+                cser_val_accs, cser_test_accs = [], []
                 for seed in range(10):
                     torch.manual_seed(seed)
                     model_raw = m_cls(dataset.num_features, 64, dataset.num_classes)
-                    raw_accs.append(train_eval(model_raw, data, edge_index_raw))
+                    v_acc, t_acc = train_eval(model_raw, data, edge_index_raw)
+                    raw_val_accs.append(v_acc)
+                    raw_test_accs.append(t_acc)
                     
                     torch.manual_seed(seed)
                     model_cser = m_cls(dataset.num_features, 64, dataset.num_classes)
-                    cser_accs.append(train_eval(model_cser, data, edge_index_rewired))
+                    v_acc, t_acc = train_eval(model_cser, data, edge_index_rewired)
+                    cser_val_accs.append(v_acc)
+                    cser_test_accs.append(t_acc)
                 
-                mean_raw = np.mean(raw_accs) * 100
-                mean_cser = np.mean(cser_accs) * 100
-                print(f"{name} {m_name} - Raw: {mean_raw:.2f}% | CSER: {mean_cser:.2f}%")
+                mean_raw_val = np.mean(raw_val_accs) * 100
+                mean_raw_test = np.mean(raw_test_accs) * 100
+                mean_cser_val = np.mean(cser_val_accs) * 100
+                mean_cser_test = np.mean(cser_test_accs) * 100
+                print(f"{name} {m_name} - Raw (Val/Test): {mean_raw_val:.2f}% / {mean_raw_test:.2f}% | CSER (Val/Test): {mean_cser_val:.2f}% / {mean_cser_test:.2f}%")
                 
                 results.append({
                     'Dataset': name,
                     'Model': m_name,
-                    'Raw_Acc': mean_raw,
-                    'CSER_Acc': mean_cser
+                    'Raw_Val_Acc': mean_raw_val,
+                    'Raw_Test_Acc': mean_raw_test,
+                    'CSER_Val_Acc': mean_cser_val,
+                    'CSER_Test_Acc': mean_cser_test
                 })
                 
     with open('gnn_benchmarks.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['Dataset', 'Model', 'Raw_Acc', 'CSER_Acc'])
+        writer = csv.DictWriter(f, fieldnames=['Dataset', 'Model', 'Raw_Val_Acc', 'Raw_Test_Acc', 'CSER_Val_Acc', 'CSER_Test_Acc'])
         writer.writeheader()
         writer.writerows(results)
     print("Saved to gnn_benchmarks.csv")
